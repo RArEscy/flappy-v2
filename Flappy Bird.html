@@ -1,0 +1,210 @@
+=<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flappy Bird</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #222;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      color: #ffff00;
+      font-weight: bold;
+      font-size: 3em;
+      text-shadow: 0 0 15px #ffff00;
+      margin: 10px 0 0 0;
+    }
+
+    button {
+      background-color: #ffff00;
+      color: #000;
+      font-weight: bold;
+      font-size: 18px;
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 0 10px #ffff00;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: linear-gradient(to bottom, #87ceeb, #b0e0e6);
+      border: 3px solid yellow;
+    }
+  </style>
+</head>
+<body>
+  <h1>Flappy Bird</h1>
+  <button onclick="resetGame()">🔁 Reset Game</button>
+  <canvas id="game" width="480" height="640"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    let bird, pipes, frame, score, gameOver;
+    let lastTopHeight = null;
+
+    const pipeWidth = 60;
+    const pipeGap = 120;
+
+    document.addEventListener("keydown", function (e) {
+      if (gameOver) return;
+
+      if (e.key === "ArrowUp") {
+        bird.velocity = bird.lift;
+      } else if (e.key === "ArrowDown") {
+        bird.velocity += 1.5;
+      }
+    });
+
+    function initGame() {
+      bird = {
+        x: 80,
+        y: 250,
+        width: 30,
+        height: 30,
+        gravity: 0.25,
+        lift: -8,
+        velocity: 0,
+        damping: 0.92,
+      };
+
+      pipes = [];
+      frame = 0;
+      score = 0;
+      gameOver = false;
+      lastTopHeight = null;
+    }
+
+    function resetGame() {
+      initGame();
+      update();
+    }
+
+    function drawBird() {
+      ctx.fillStyle = "yellow";
+      ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+    }
+
+    function drawPipe(pipe) {
+      ctx.fillStyle = "green";
+      ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+      ctx.fillRect(pipe.x, pipe.top + pipeGap, pipeWidth, canvas.height - pipe.top - pipeGap);
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      bird.velocity += bird.gravity;
+      bird.velocity *= bird.damping;
+      bird.y += bird.velocity;
+
+      // Limitare jos generală (podeaua)
+      if (bird.y + bird.height > canvas.height) {
+        bird.y = canvas.height - bird.height;
+        bird.velocity = 0;
+      }
+      // Moarte la tavan
+      if (bird.y < 0) {
+        bird.y = 0;
+        endGame();
+      }
+
+      drawBird();
+
+      if (frame % 130 === 0) {
+        let newTopHeight;
+        if (lastTopHeight === null) {
+          newTopHeight = Math.floor(Math.random() * (canvas.height - pipeGap - 100)) + 20;
+        } else {
+          const change = (Math.random() * 80) - 40;
+          newTopHeight = lastTopHeight + change;
+
+          const minTop = 20;
+          const maxTop = canvas.height - pipeGap - 100;
+          if (newTopHeight < minTop) newTopHeight = minTop;
+          if (newTopHeight > maxTop) newTopHeight = maxTop;
+        }
+        lastTopHeight = newTopHeight;
+
+        pipes.push({ x: canvas.width, top: newTopHeight, passed: false });
+      }
+
+      for (let i = 0; i < pipes.length; i++) {
+        let pipe = pipes[i];
+        pipe.x -= 2;
+
+        drawPipe(pipe);
+
+        // Coliziune orizontală
+        const inXRange = bird.x < pipe.x + pipeWidth && bird.x + bird.width > pipe.x;
+
+        if (inXRange) {
+          // Coliziune cu partea superioară a țevii (segment verde sus) => moarte
+          if (bird.y < pipe.top) {
+            endGame();
+          }
+          // Coliziune cu partea inferioară (segment verde jos)
+          else if (bird.y + bird.height > pipe.top + pipeGap) {
+            // verificăm coliziunea laterală (cu partea verticală a țevii jos)
+            // dacă pasărea este jos pe podea, oprim căderea și poziționăm
+            // dacă pasărea este în aer în lateral, moarte
+
+            const birdBottom = bird.y + bird.height;
+            const pipeBottomTop = pipe.top + pipeGap;
+
+            // Dacă pasărea este fix pe podea (sau aproape), oprim căderea
+            if (birdBottom >= pipeBottomTop && birdBottom <= pipeBottomTop + 5) {
+              bird.y = pipeBottomTop - bird.height;
+              bird.velocity = 0;
+            } else {
+              // Moarte dacă este în lateral în aer
+              endGame();
+            }
+          }
+        }
+
+        if (!pipe.passed && pipe.x + pipeWidth < bird.x) {
+          pipe.passed = true;
+          score++;
+        }
+      }
+
+      pipes = pipes.filter((pipe) => pipe.x + pipeWidth > 0);
+
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+
+      frame++;
+      requestAnimationFrame(update);
+    }
+
+    function endGame() {
+      gameOver = true;
+      ctx.fillStyle = "red";
+      ctx.font = "40px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2 - 20);
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      ctx.fillText("Final Score: " + score, canvas.width / 2, canvas.height / 2 + 20);
+    }
+
+    initGame();
+    update();
+  </script>
+</body>
+</html>
+
